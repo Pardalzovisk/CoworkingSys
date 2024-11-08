@@ -27,69 +27,120 @@ namespace Cowork.Controllers
 
         public IActionResult Create()
         {
-            ViewBag.ClienteId = new SelectList(_context.Clientes, "Id", "Nome");
+            var reserva = new Reserva
+            {
+                Funcionarios = _context.Funcionarios.ToList()
+            };
             ViewBag.SalaId = new SelectList(_context.Salas, "Id", "Nome");
-            return View();
+            ViewBag.ClienteId = new SelectList(_context.Clientes, "Id", "Nome");
+            return View(reserva);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create(Reserva reserva)
+        public IActionResult Create(Reserva reserva, int[] funcionariosSelecionados)
         {
-            if (ModelState.IsValid) { 
-                try 
+            if (ModelState.IsValid)
+            {
+                reserva.Funcionarios = new List<Funcionario>();
+                foreach (var funcionarioId in funcionariosSelecionados)
                 {
-                  _context.Add(reserva);
-                  await _context.SaveChangesAsync();
-                  return RedirectToAction(nameof(Index));
+                    var funcionario = _context.Funcionarios.Find(funcionarioId);
+                    if (funcionario != null)
+                    {
+                        reserva.Funcionarios.Add(funcionario);
+                    }
                 }
-                catch (Exception ex)
-                {
-                  ModelState.AddModelError(string.Empty, $"Erro ao salvar a reserva: {ex.Message}");
-                }
+
+                _context.Add(reserva);
+                _context.SaveChanges();
+                return RedirectToAction(nameof(Index));
             }
-            ViewBag.ClienteId = new SelectList(_context.Clientes, "Id", "Nome");
-            ViewBag.SalaId = new SelectList(_context.Salas, "Id", "Nome");
+            ViewBag.SalaId = new SelectList(_context.Salas, "Id", "Nome", reserva.SalaId);
+            ViewBag.ClienteId = new SelectList(_context.Clientes, "Id", "Nome", reserva.ClienteId);
             return View(reserva);
         }
 
-        public async Task<IActionResult> Edit(int? id)
+
+        public IActionResult Edit(int id)
         {
-            if (id == null)
-                return NotFound();
+            var reserva = _context.Reservas
+                .Include(r => r.Funcionarios)
+                .FirstOrDefault(r => r.Id == id);
 
-            var reserva = await _context.Reservas.FindAsync(id);
             if (reserva == null)
+            {
                 return NotFound();
+            }
 
-            ViewBag.ClienteId = new SelectList(_context.Clientes, "Id", "Nome");
-            ViewBag.SalaId = new SelectList(_context.Salas, "Id", "Nome");
+            ViewBag.SalaId = new SelectList(_context.Salas, "Id", "Nome", reserva.SalaId);
+            ViewBag.ClienteId = new SelectList(_context.Clientes, "Id", "Nome", reserva.ClienteId);
+            ViewBag.Funcionarios = _context.Funcionarios.ToList();
+
             return View(reserva);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Edit(int id, Reserva reserva)
+        public IActionResult Edit(int id, Reserva reserva, int[] funcionariosSelecionados)
         {
             if (id != reserva.Id)
+            {
                 return NotFound();
+            }
 
             if (ModelState.IsValid)
             {
                 try
                 {
-                    _context.Update(reserva);
-                    await _context.SaveChangesAsync();
+                    var reservaExistente = _context.Reservas
+                        .Include(r => r.Funcionarios)
+                        .FirstOrDefault(r => r.Id == id);
+
+                    if (reservaExistente == null)
+                    {
+                        return NotFound();
+                    }
+
+                    // Atualizar propriedades da reserva
+                    reservaExistente.DataReserva = reserva.DataReserva;
+                    reservaExistente.HorarioInicio = reserva.HorarioInicio;
+                    reservaExistente.HorarioFim = reserva.HorarioFim;
+                    reservaExistente.ClienteId = reserva.ClienteId;
+                    reservaExistente.SalaId = reserva.SalaId;
+
+                    // Atualizar lista de funcionários
+                    reservaExistente.Funcionarios.Clear();
+                    foreach (var funcionarioId in funcionariosSelecionados)
+                    {
+                        var funcionario = _context.Funcionarios.Find(funcionarioId);
+                        if (funcionario != null)
+                        {
+                            reservaExistente.Funcionarios.Add(funcionario);
+                        }
+                    }
+
+                    _context.Update(reservaExistente);
+                    _context.SaveChanges();
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    if (!_context.Reservas.Any(e => e.Id == reserva.Id))
+                    if (!_context.Reservas.Any(r => r.Id == reserva.Id))
+                    {
                         return NotFound();
+                    }
                     else
+                    {
                         throw;
+                    }
                 }
                 return RedirectToAction(nameof(Index));
             }
+
+            ViewBag.SalaId = new SelectList(_context.Salas, "Id", "Nome", reserva.SalaId);
+            ViewBag.ClienteId = new SelectList(_context.Clientes, "Id", "Nome", reserva.ClienteId);
+            ViewBag.Funcionarios = _context.Funcionarios.ToList();
+
             return View(reserva);
         }
 
@@ -114,9 +165,33 @@ namespace Cowork.Controllers
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
             var reserva = await _context.Reservas.FindAsync(id);
+            if (reserva == null)
+            {
+                return NotFound();
+            }
             _context.Reservas.Remove(reserva);
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Index));
+        }
+        public async Task<IActionResult> Details(int? id)
+        {
+            if (id == null)
+            {
+                return NotFound();
+            }
+
+            var reserva = await _context.Reservas
+                .Include(r => r.Cliente)
+                .Include(r => r.Sala)
+                .Include(r => r.Funcionarios)
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (reserva == null)
+            {
+                return NotFound();
+            }
+
+            return View(reserva);
         }
     }
 }

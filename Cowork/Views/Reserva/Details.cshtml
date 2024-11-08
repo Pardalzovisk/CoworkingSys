@@ -46,8 +46,10 @@
         </dt>
         <dd class="col-sm-10">
             @foreach (var funcionario in Model.Funcionarios)
-            {
-                <p>@funcionario.Nome</p>
+            {   
+                <ul>
+                    <li>@funcionario.Nome</li>
+                </ul>
             }
         </dd>
     </dl>
